@@ -2,21 +2,22 @@ use env_logger;
 use exitfailure::ExitFailure;
 use failure::Error;
 use failure::{self, ResultExt};
-use htmlescape;
 use std::path::PathBuf;
-
 use log::{debug, info, warn};
 use reqwest;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use structopt::StructOpt;
 use url::Url;
+use chrono::prelude::*;
+
+mod db;
 
 #[derive(Debug, StructOpt)]
 struct Opts {
-    /// Path where fetchmixes will put its Sqlite database. If not present, defaults to `./fetchmixes.db`.
-    #[structopt(short = "d", long = "database", parse(from_os_str))]
-    db_path: Option<PathBuf>,
+    /// Path where fetchmixes will put its Sqlite database.
+    #[structopt(short = "d", long = "database", default_value="./fetchmixes.db", parse(from_os_str))]
+    db_path: PathBuf,
 
     #[structopt(subcommand)]
     cmd: Command,
@@ -36,20 +37,25 @@ fn get_csrf_token(client: &reqwest::Client, profile_url: &str) -> Result<String,
 }
 
 #[derive(Debug, Deserialize)]
-struct CloudcastCovers {
+pub struct CloudcastCovers {
     extra_large: String,
 }
 
 #[derive(Debug, Deserialize)]
-struct Cloudcast {
+pub struct Cloudcast {
     play_count: i64,
     url: String,
     pictures: CloudcastCovers,
+    created_time: DateTime<Utc>,
+    updated_time: DateTime<Utc>,
 }
 
 fn main() -> Result<(), ExitFailure> {
     env_logger::init();
     let opts = Opts::from_args();
+
+    let mut db_conn = db::init(opts.db_path)?;
+
     match opts.cmd {
         Command::CrawlDj { dj_username } => {
             let frontend_base = Url::parse("https://www.mixcloud.com/")?;
@@ -86,6 +92,7 @@ fn main() -> Result<(), ExitFailure> {
 
             let dj_id = usercard["data"]["userLookup"]["id"].as_str().unwrap();
             info!("DJ has internal user id of: {}", dj_id);
+            db::upsert_dj(&db_conn, &dj_username, &dj_id)?;
 
             let mut cloudcasts: Vec<Cloudcast> = Vec::new();
             let mut cloudcasts_api = api_page.clone();
@@ -107,6 +114,8 @@ fn main() -> Result<(), ExitFailure> {
                     }
                 }
             }
+
+            db::insert_api_cloudcasts(&mut db_conn, &cloudcasts[..])?;
         }
     }
 

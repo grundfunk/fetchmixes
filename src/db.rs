@@ -57,8 +57,8 @@ pub fn insert_api_cloudcasts(conn: &mut Connection, sets: &[Cloudcast]) -> Resul
 
     for cc in sets {
         tx.execute("INSERT INTO sets (url, cover_url, publish_date, updated_date) VALUES (?1, ?2, ?3, ?4)",
-            &[&cc.url, &cc.pictures.extra_large,
-            &cc.created_time.to_rfc3339(), &cc.updated_time.to_rfc3339()])?;
+            params![&cc.url, &cc.pictures.extra_large,
+            cc.created_time, cc.updated_time])?;
     }
 
     tx.commit()

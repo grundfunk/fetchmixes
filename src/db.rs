@@ -1,21 +1,18 @@
-use rusqlite::{Connection, Error, NO_PARAMS};
+use rusqlite::{Connection, Error, NO_PARAMS, params};
 use std::path::Path;
-use log::debug;
+use log::{info, debug};
 use crate::Cloudcast;
 
-pub fn init(path: impl AsRef<Path>) -> Result<Connection, Error> {
-    debug!("opening connection to sqlite db at {:?}", path.as_ref());
-    let conn = rusqlite::Connection::open(path)?;
-
-    debug!("initializing djs table");
-    conn.execute("
+const MIGRATIONS: [&'static str; 2] = [
+    //========= 1 create DJs table =========
+    "
         CREATE TABLE IF NOT EXISTS djs (
             mixcloudid TEXT PRIMARY KEY,
             username   TEXT NOT NULL
         )
-    ", NO_PARAMS)?;
-
-    conn.execute("
+    ",
+    //========= 2 create sets table =========
+    "
         CREATE TABLE IF NOT EXISTS sets (
             id           INTEGER PRIMARY KEY,
             url          TEXT NOT NULL,
@@ -23,7 +20,29 @@ pub fn init(path: impl AsRef<Path>) -> Result<Connection, Error> {
             publish_date TEXT NOT NULL,
             updated_date TEXT NOT NULL
         )
-    ", NO_PARAMS)?;
+        ",
+];
+
+pub fn init(path: impl AsRef<Path>) -> Result<Connection, Error> {
+    info!("opening connection to sqlite db at {:?}", path.as_ref());
+    let mut conn = rusqlite::Connection::open(path)?;
+
+    let ver = conn.pragma_query_value::<i64, _>(None, "user_version", |row| row.get(0))? as usize;
+    info!("database is at version {} (0 is freshly-created)", ver);
+
+    if (ver as usize) < MIGRATIONS.len() {
+        info!("need to run migrations! currently at {}, migrations list is at {}", ver, MIGRATIONS.len());
+
+        for (i, m) in MIGRATIONS[ver..].iter().enumerate() {
+            let tx = conn.transaction()?;
+            debug!("executing migration {}", i+1);
+            tx.execute(m, NO_PARAMS)?;
+            tx.commit()?;
+
+            debug!("migration committed! rewriting database version to {}", i+1);
+            conn.pragma_update(None, "user_version", &(i as i64 + 1))?;
+        }
+    }
 
     Ok(conn)
 }

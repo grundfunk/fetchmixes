@@ -1,7 +1,7 @@
-use rusqlite::{Connection, Error, NO_PARAMS, params};
-use std::path::Path;
-use log::{info, debug};
 use crate::Cloudcast;
+use log::{debug, info};
+use rusqlite::{params, Connection, Error, NO_PARAMS};
+use std::path::Path;
 
 const MIGRATIONS: [&'static str; 2] = [
     //========= 1 create DJs table =========
@@ -20,7 +20,7 @@ const MIGRATIONS: [&'static str; 2] = [
             publish_date TEXT NOT NULL,
             updated_date TEXT NOT NULL
         )
-        ",
+    ",
 ];
 
 pub fn init(path: impl AsRef<Path>) -> Result<Connection, Error> {
@@ -31,15 +31,22 @@ pub fn init(path: impl AsRef<Path>) -> Result<Connection, Error> {
     info!("database is at version {} (0 is freshly-created)", ver);
 
     if (ver as usize) < MIGRATIONS.len() {
-        info!("need to run migrations! currently at {}, migrations list is at {}", ver, MIGRATIONS.len());
+        info!(
+            "need to run migrations! currently at {}, migrations list is at {}",
+            ver,
+            MIGRATIONS.len()
+        );
 
         for (i, m) in MIGRATIONS[ver..].iter().enumerate() {
             let tx = conn.transaction()?;
-            debug!("executing migration {}", i+1);
+            debug!("executing migration {}", i + 1);
             tx.execute(m, NO_PARAMS)?;
             tx.commit()?;
 
-            debug!("migration committed! rewriting database version to {}", i+1);
+            debug!(
+                "migration committed! rewriting database version to {}",
+                i + 1
+            );
             conn.pragma_update(None, "user_version", &(i as i64 + 1))?;
         }
     }
@@ -48,17 +55,25 @@ pub fn init(path: impl AsRef<Path>) -> Result<Connection, Error> {
 }
 
 pub fn upsert_dj(conn: &Connection, username: &str, mixcloud_id: &str) -> Result<usize, Error> {
-    conn.execute("INSERT OR REPLACE INTO djs (mixcloudid, username) VALUES (?1, ?2)",
-        &[mixcloud_id, username])
+    conn.execute(
+        "INSERT OR REPLACE INTO djs (mixcloudid, username) VALUES (?1, ?2)",
+        &[mixcloud_id, username],
+    )
 }
 
 pub fn insert_api_cloudcasts(conn: &mut Connection, sets: &[Cloudcast]) -> Result<(), Error> {
     let tx = conn.transaction()?;
 
     for cc in sets {
-        tx.execute("INSERT INTO sets (url, cover_url, publish_date, updated_date) VALUES (?1, ?2, ?3, ?4)",
-            params![&cc.url, &cc.pictures.extra_large,
-            cc.created_time, cc.updated_time])?;
+        tx.execute(
+            "INSERT INTO sets (url, cover_url, publish_date, updated_date) VALUES (?1, ?2, ?3, ?4)",
+            params![
+                &cc.url,
+                &cc.pictures.extra_large,
+                cc.created_time,
+                cc.updated_time
+            ],
+        )?;
     }
 
     tx.commit()

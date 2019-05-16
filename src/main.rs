@@ -1,22 +1,27 @@
+use chrono::prelude::*;
 use env_logger;
 use exitfailure::ExitFailure;
 use failure::Error;
 use failure::{self, ResultExt};
-use std::path::PathBuf;
 use log::{debug, info, warn};
 use reqwest;
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::path::PathBuf;
 use structopt::StructOpt;
 use url::Url;
-use chrono::prelude::*;
 
 mod db;
 
 #[derive(Debug, StructOpt)]
 struct Opts {
     /// Path where fetchmixes will put its Sqlite database.
-    #[structopt(short = "d", long = "database", default_value="./fetchmixes.db", parse(from_os_str))]
+    #[structopt(
+        short = "d",
+        long = "database",
+        default_value = "./fetchmixes.db",
+        parse(from_os_str)
+    )]
     db_path: PathBuf,
 
     #[structopt(subcommand)]

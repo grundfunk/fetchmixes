@@ -33,6 +33,9 @@ enum Command {
     /// Crawl a DJ's page on Mixcloud. Just saves a list of sets in the fetchmixes database; does _not_ download audio or setlists.
     #[structopt(name = "crawl-dj")]
     CrawlDj { dj_username: String },
+
+    #[structopt(name = "fetch-setlists")]
+    FetchSetlists { dj_username: String },
 }
 
 fn get_csrf_token(client: &reqwest::Client, profile_url: &str) -> Result<String, Error> {
@@ -122,8 +125,11 @@ fn main() -> Result<(), ExitFailure> {
                 }
             }
 
-            db::insert_api_cloudcasts(&mut db_conn, &cloudcasts[..])?;
-        }
+            db::insert_api_cloudcasts(&mut db_conn, dj_pk_id, &cloudcasts[..])?;
+        },
+        Command::FetchSetlists {dj_username} => {
+
+        },
     }
 
     Ok(())

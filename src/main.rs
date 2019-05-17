@@ -97,8 +97,10 @@ fn main() -> Result<(), ExitFailure> {
 
             let dj_id = usercard["data"]["userLookup"]["id"].as_str().unwrap();
             info!("DJ has internal user id of: {}", dj_id);
-            db::upsert_dj(&db_conn, &dj_username, &dj_id)?;
+            let dj_pk_id = db::upsert_dj(&mut db_conn, &dj_username, &dj_id)?;
+            info!("Committed DJ metadata to sqlite; djs(id) is {}", dj_pk_id);
 
+            info!("Fetching full list of DJ's sets");
             let mut cloudcasts: Vec<Cloudcast> = Vec::new();
             let mut cloudcasts_api = api_page.clone();
             cloudcasts_api

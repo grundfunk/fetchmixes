@@ -18,10 +18,10 @@ const MIGRATIONS: [&'static str; 2] = [
             id           INTEGER PRIMARY KEY,
             dj_id        INTEGER NOT NULL,
             mixcloud_id  TEXT NOT NULL UNIQUE,
-            url          TEXT NOT NULL,
-            cover_url    TEXT NOT NULL,
+
             publish_date TEXT NOT NULL,
-            updated_date TEXT NOT NULL,
+            description  TEXT NOT NULL,
+            name         TEXT NOT NULL,
 
             FOREIGN KEY(dj_id) REFERENCES djs(id)
         )
@@ -71,17 +71,21 @@ pub fn upsert_dj(conn: &mut Connection, username: &str, mixcloud_id: &str) -> Re
     Ok(id)
 }
 
-pub fn insert_api_cloudcasts(conn: &mut Connection, dj_id: i64, sets: &[Cloudcast]) -> Result<(), Error> {
+pub fn insert_api_cloudcasts(
+    conn: &mut Connection,
+    dj_id: i64,
+    sets: &[Cloudcast],
+) -> Result<(), Error> {
     let tx = conn.transaction()?;
 
     for cc in sets {
         tx.execute(
-            "INSERT INTO sets (url, cover_url, publish_date, updated_date, dj_id) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT DO NOTHING",
+            "INSERT INTO sets (mixcloud_id, publish_date, name, description, dj_id) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT DO NOTHING",
             params![
-                &cc.url,
-                &cc.pictures.extra_large,
-                cc.created_time,
-                cc.updated_time,
+                cc.id,
+                cc.publish_date,
+                cc.name,
+                cc.description,
                 dj_id
             ],
         )?;

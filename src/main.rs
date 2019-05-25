@@ -1,17 +1,19 @@
-use chrono::prelude::*;
 use env_logger;
 use exitfailure::ExitFailure;
 use failure::Error;
 use failure::{self, ResultExt};
 use log::{debug, info, warn};
 use reqwest;
-use serde::Deserialize;
 use serde_json::{json, Value};
+use std::fs::File;
 use std::path::PathBuf;
 use structopt::StructOpt;
 use url::Url;
 
+mod data;
 mod db;
+
+use data::*;
 
 #[derive(Debug, StructOpt)]
 struct Opts {
@@ -44,20 +46,6 @@ fn get_csrf_token(client: &reqwest::Client, profile_url: &str) -> Result<String,
     Ok(csrfcookie.value().to_string())
 }
 
-#[derive(Debug, Deserialize)]
-pub struct CloudcastCovers {
-    extra_large: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Cloudcast {
-    play_count: i64,
-    url: String,
-    pictures: CloudcastCovers,
-    created_time: DateTime<Utc>,
-    updated_time: DateTime<Utc>,
-}
-
 fn main() -> Result<(), ExitFailure> {
     env_logger::init();
     let opts = Opts::from_args();
@@ -87,7 +75,11 @@ fn main() -> Result<(), ExitFailure> {
 
             // -- get ID from UserStatsCard
             let payload_userstatscard = json! {
-                {"id":"q59","query":"query UserStatsCard($lookup_0:UserLookup!,$first_1:Int!) {userLookup(lookup:$lookup_0) {id,...F1}} fragment F0 on Stats {comments {totalCount},favorites {totalCount},reposts {totalCount},plays {totalCount},minutes {totalCount},__typename} fragment F1 on User {isViewer,isUploader,username,hasProFeatures,_uploads1No11a:uploads(first:$first_1) {edges {node {id},cursor},pageInfo {hasNextPage,hasPreviousPage}},stats {...F0},id}","variables":{"lookup_0":{"username":"Grundfunk"},"first_1":1}}
+                {
+                    "id":"q59",
+                    "query": include_str!("../queries/UserStatsCard.graphql"),
+                    "variables":{"lookup_0":{"username":"Grundfunk"},"first_1":1}
+                }
             };
             let usercard: Value = client
                 .post(graphql_endpoint.as_str())
@@ -103,33 +95,46 @@ fn main() -> Result<(), ExitFailure> {
             let dj_pk_id = db::upsert_dj(&mut db_conn, &dj_username, &dj_id)?;
             info!("Committed DJ metadata to sqlite; djs(id) is {}", dj_pk_id);
 
-            info!("Fetching full list of DJ's sets");
-            let mut cloudcasts: Vec<Cloudcast> = Vec::new();
-            let mut cloudcasts_api = api_page.clone();
-            cloudcasts_api
-                .path_segments_mut()
-                .unwrap()
-                .push("cloudcasts");
-            loop {
-                debug!("fetching url {}", cloudcasts_api.as_str());
-                let resp: Value = client.get(cloudcasts_api.as_str()).send()?.json()?;
-                let ccast_list: Vec<Cloudcast> = serde_json::from_value(resp["data"].clone())?;
-                cloudcasts.extend(ccast_list);
-
-                match resp["paging"]["next"].as_str() {
-                    Some(next_page) => cloudcasts_api = Url::parse(next_page)?,
-                    None => {
-                        debug!("hit end of cloudcasts list pagination, breaking");
-                        break;
+            // -- get sets from UserUploadsPageQuery
+            let mut all_casts: Vec<Cloudcast> = Vec::new();
+            let mut cursor: Option<String> = None;
+            for i in 1.. {
+                debug!(
+                    "running UserUploadsPageQuery through /graphql for page {} (afterCursor={:?})",
+                    i, cursor
+                );
+                let payload = json! {
+                    {
+                        "id":"q88",
+                        "query": include_str!("../queries/UserUploadsPageQuery.graphql"),
+                        "variables":{"first_0":20,"orderBy_1":"LATEST","afterCursor":cursor, "userId": dj_id}
                     }
+                };
+                let query_result: Value = client
+                    .post(graphql_endpoint.as_str())
+                    .header("X-CSRFToken", csrf.as_str())
+                    .header("Referer", profile_page.as_str())
+                    .header("Cookie", format!("csrftoken={}", csrf))
+                    .json(&payload)
+                    .send()?
+                    .json()?;
+
+                let q_r: QueryResponse<UserUploadsData> =
+                    serde_json::from_value(query_result.clone())?;
+                cursor = Some(q_r.data.uploads.last().unwrap().cursor.clone());
+                all_casts.extend(q_r.data.uploads.into_iter().map(|u| u.cloudcast));
+
+                let page_info: PageInfo = serde_json::from_value(
+                    query_result["data"]["user"]["uploads"]["pageInfo"].clone(),
+                )?;
+                if !page_info.has_next_page {
+                    break;
                 }
             }
 
-            db::insert_api_cloudcasts(&mut db_conn, dj_pk_id, &cloudcasts[..])?;
-        },
-        Command::FetchSetlists {dj_username} => {
-
-        },
+            db::insert_api_cloudcasts(&mut db_conn, dj_pk_id, &all_casts)?;
+        }
+        Command::FetchSetlists { dj_username } => {}
     }
 
     Ok(())

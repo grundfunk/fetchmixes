@@ -1,0 +1,243 @@
+query UserUploadsPageQuery($first_0: Int!, $afterCursor: String, $orderBy_1: CloudcastOrderByEnum!, $userId: ID!) {
+  user: user(id: $userId) {
+    id
+    ...Fh
+  }
+}
+
+fragment F0 on Picture {
+  urlRoot
+  primaryColor
+}
+
+fragment F1 on User {
+  id
+}
+
+fragment F2 on User {
+  username
+  hasProFeatures
+  hasPremiumFeatures
+  isStaff
+  isSelect
+  id
+}
+
+fragment F3 on Cloudcast {
+  isExclusive
+  isExclusivePreviewOnly
+  slug
+  owner {
+    username
+    id
+  }
+  id
+}
+
+fragment F4 on CloudcastTag {
+  tag {
+    name
+    slug
+    isCategory
+    id
+  }
+  position
+}
+
+fragment F5 on Cloudcast {
+  _tags4ruy33: tags {
+    ...F4
+  }
+  id
+}
+
+fragment F6 on Cloudcast {
+  restrictedReason
+  owner {
+    username
+    isSubscribedTo
+    isViewer
+    id
+  }
+  slug
+  id
+  isAwaitingAudio
+  isDraft
+  isPlayable
+  streamInfo {
+    hlsUrl
+    dashUrl
+    url
+    uuid
+  }
+  audioLength
+  currentPosition
+  proportionListened
+  seekRestriction
+  previewUrl
+  isExclusivePreviewOnly
+  isExclusive
+}
+
+fragment F7 on Cloudcast {
+  id
+  name
+  slug
+  owner {
+    id
+    username
+    displayName
+    isSelect
+    ...F1
+    ...F2
+  }
+  isUnlisted
+  isExclusive
+  ...F3
+  ...F5
+  ...F6
+}
+
+fragment F8 on Cloudcast {
+  isDraft
+  hiddenStats
+  plays
+  publishDate
+  qualityScore
+  listenerMinutes
+  id
+}
+
+fragment F9 on Cloudcast {
+  id
+  isFavorited
+  isPublic
+  hiddenStats
+  favorites {
+    totalCount
+  }
+  slug
+  owner {
+    id
+    isFollowing
+    username
+    displayName
+    isViewer
+  }
+}
+
+fragment Fa on Cloudcast {
+  id
+  isReposted
+  isPublic
+  hiddenStats
+  reposts {
+    totalCount
+  }
+  owner {
+    isViewer
+    id
+  }
+}
+
+fragment Fb on Cloudcast {
+  id
+  isUnlisted
+  isPublic
+}
+
+fragment Fc on Cloudcast {
+  id
+  isUnlisted
+  isPublic
+  slug
+  description
+  picture {
+    urlRoot
+  }
+  owner {
+    displayName
+    isViewer
+    username
+    id
+  }
+}
+
+fragment Fd on Cloudcast {
+  id
+  isPublic
+  isHighlighted
+  owner {
+    isViewer
+    id
+  }
+}
+
+fragment Fe on Cloudcast {
+  id
+  isPublic
+  isExclusive
+  owner {
+    id
+    username
+    isViewer
+    isSubscribedTo
+  }
+  ...F8
+  ...F9
+  ...Fa
+  ...Fb
+  ...Fc
+  ...Fd
+}
+
+fragment Ff on Cloudcast {
+  owner {
+    quantcastTrackingPixel
+    id
+  }
+  id
+}
+
+fragment Fg on Cloudcast {
+  id
+  slug
+  name
+  isAwaitingAudio
+  isDraft
+  isScheduled
+  restrictedReason
+  publishDate
+  waveformUrl
+  audioLength
+  owner {
+    username
+    id
+  }
+  picture {
+    ...F0
+  }
+  ...F7
+  ...Fe
+  ...Ff
+}
+
+fragment Fh on User {
+  id
+  displayName
+  username
+  uploads: uploads(first: $first_0, after: $afterCursor, orderBy: $orderBy_1) {
+    edges {
+      node {
+        id
+        ...Fg
+      }
+      cursor
+    }
+    pageInfo {
+      endCursor
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+}
